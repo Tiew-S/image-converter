@@ -1,0 +1,31 @@
+[package]
+name = "Image Converter"
+description = "It bulk converts your images on YOUR device"
+authors = ["Tiew <tnttiew@gmail.com>"]
+repository = "https://github.com/Tiew-S/image-converter"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.wix]
+upgrade-guid = "21C8673E-503C-4C52-B6B0-1AF2C8B8BC26"
+path-guid = "FCCD5BD5-1DE8-4E7F-9926-7FADF5BA6CE0"
+license = false
+eula = false
+
+[dependencies]
+gpui = { git = "https://github.com/zed-industries/zed" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit"] }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+# Optional, for default bundled assets
+gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
+anyhow = "1.0"
+dark-light = "2.0.0"
+tap = "1.0.1"
+image = "0.25.10"
+pdfium-bind = "0.1.0"
+rfd = "0.17.2"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
