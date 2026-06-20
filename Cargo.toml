@@ -1,5 +1,5 @@
 [package]
-name = "Image Converter"
+name = "ImageConverter"
 description = "It bulk converts your images on YOUR device"
 authors = ["Tiew <tnttiew@gmail.com>"]
 repository = "https://github.com/Tiew-S/image-converter"
@@ -24,6 +24,7 @@ tap = "1.0.1"
 image = "0.25.10"
 pdfium-bind = "0.1.0"
 rfd = "0.17.2"
+rayon = "1.12.0"
 
 # The profile that 'dist' will build with
 [profile.dist]

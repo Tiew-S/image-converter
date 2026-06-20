@@ -47,10 +47,12 @@ impl Render for ConvertView {
             .flex()
             .v_flex()
             .flex_col_reverse()
-            .gap_4()
             .overflow_hidden()
             .child(
                 div()
+                    .pt_2()
+                    .border_t_1()
+                    .border_color(cx.theme().border)
                     .v_flex()
                     .gap_2()
                     .child({
@@ -64,7 +66,7 @@ impl Render for ConvertView {
                                         app.add_image_button_disabled = true;
                                         cx.notify();
                                         let paths = rfd::FileDialog::new()
-                                            .add_filter("Images", &["png", "jpeg", "gif", "webp"])
+                                            .add_filter("Images", &["png", "jpeg", "gif", "webp", "pdf"])
                                             .pick_files();
 
                                         if let Some(paths) = paths {
@@ -96,24 +98,17 @@ impl Render for ConvertView {
                                             .read(cx)
                                             .selected_value()
                                         {
-                                            Some(&"PNG") => {
-                                                things::ImageFormat::Normal(image::ImageFormat::Png)
-                                            }
-                                            Some(&"JPEG") => things::ImageFormat::Normal(
-                                                image::ImageFormat::Jpeg,
-                                            ),
-                                            Some(&"GIF") => {
-                                                things::ImageFormat::Normal(image::ImageFormat::Gif)
-                                            }
-                                            Some(&"WEBP") => things::ImageFormat::Normal(
-                                                image::ImageFormat::WebP,
-                                            ),
-                                            Some(&"TIFF") => things::ImageFormat::Normal(
-                                                image::ImageFormat::Tiff,
-                                            ),
-                                            Some(&"AVIF") => things::ImageFormat::Normal(
-                                                image::ImageFormat::Avif,
-                                            ),
+                                            Some(&"PNG") => image::ImageFormat::Png,
+
+                                            Some(&"JPEG") => image::ImageFormat::Jpeg,
+
+                                            Some(&"GIF") => image::ImageFormat::Gif,
+
+                                            Some(&"WEBP") => image::ImageFormat::WebP,
+
+                                            Some(&"TIFF") => image::ImageFormat::Tiff,
+
+                                            Some(&"AVIF") => image::ImageFormat::Avif,
                                             _ => return,
                                         };
                                         cx.spawn(async move |this, cx| {
@@ -141,9 +136,9 @@ impl Render for ConvertView {
                                                     cx.notify();
                                                 });
                                                 let res = cx
-                                                    .background_spawn(
-                                                        async move { image.convert(&fmt) },
-                                                    )
+                                                    .background_spawn(async move {
+                                                        image.convert(&fmt, None)
+                                                    })
                                                     .await;
                                                 let _ = this.update(cx, |this, _cx| {
                                                     this.converter.images.get_mut(i).and_then(
@@ -167,12 +162,14 @@ impl Render for ConvertView {
                             ),
                     ),
             )
-            .child(div().overflow_y_scrollbar().pipe(|d| {
+            .child(div().size_full().overflow_y_hidden().pipe(|d| {
                 let n_images = self.converter.images.len();
                 if n_images > 0 {
                     d.child(
                         div()
+                            .mb_4()
                             .v_flex()
+                            .overflow_y_scrollbar()
                             .border_1()
                             .border_color(cx.theme().border)
                             .rounded_md()
@@ -240,6 +237,5 @@ impl Render for ConvertView {
                     d
                 }
             }))
-            
     }
 }

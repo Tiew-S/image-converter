@@ -3,12 +3,12 @@ use gpui_component::{
     *,
 };
 
-use crate::convert_view::ConvertView;
+use crate::app::ConvertView;
 mod things;
-mod convert_view;
+mod app;
 
 pub struct App {
-    convert_view_entity: Entity<convert_view::ConvertView>
+    convert_view_entity: Entity<app::ConvertView>
 }
 
 impl App {

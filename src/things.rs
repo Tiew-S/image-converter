@@ -1,7 +1,12 @@
 use anyhow::{Result, anyhow};
+use image::{GenericImage, Rgba};
+use pdfium_bind::*;
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::{
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
+    fs,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex}
 };
 
 #[derive(PartialEq, Clone, Copy)]
@@ -52,37 +57,117 @@ impl Image {
         })
     }
 
-    pub fn convert(&self, img_format: &ImageFormat) -> Result<()> {
-        match img_format {
-            ImageFormat::Normal(fmt) => {
+    pub fn convert(
+        &self,
+        img_format: &image::ImageFormat,
+        options: Option<ImageConvertionOptions>,
+    ) -> Result<()> {
+        let options = options.unwrap_or_default();
+        match self.format {
+            ImageFormat::Normal(_) => {
                 let img = image::ImageReader::open(&self.path)?.decode()?;
                 img.save_with_format(
                     &self.path.with_extension(
-                        fmt.extensions_str()
+                        img_format
+                            .extensions_str()
                             .first()
-                            .ok_or(anyhow!("No &str for format {:?}, somehow", fmt))?,
+                            .ok_or(anyhow!("No &str for format {:?}, somehow", img_format))?,
                     ),
-                    fmt.clone(),
+                    img_format.clone(),
                 )?;
                 Ok(())
             }
             ImageFormat::Other(fmt) => match fmt {
-                OtherFormats::Pdf => todo!("TODO: PDF conversion"),
+                OtherFormats::Pdf => {
+                    let doc = PdfDocument::open(&self.path).map_err(|s| anyhow!(s))?;
+                    let mut pdf_folder = self.path.clone();
+
+                    pdf_folder.pop();
+                    pdf_folder.push(self.path.file_stem().ok_or(anyhow!("No file stem"))?);
+                    fs::create_dir(&pdf_folder)?;
+                    let extension = img_format
+                                .extensions_str()
+                                .first()
+                                .ok_or(anyhow!("No &str for format {:?}, somehow", img_format))?;
+                    let doc_page_count = doc.page_count();
+                    let renders: Vec<((Vec<u8>, i32, i32), isize)> = (0..doc.page_count())
+                        .filter_map(|index| {
+                            dbg!(index);
+
+                            let render = doc.render_page(index, options.pdf_render_dpi as f32);
+                   
+                            if render.is_err() {
+                                dbg!("Couln't render");
+                                return None;
+                            }
+                            Some((render.unwrap(), index))
+                        }).collect();
+                    renders
+                        .par_iter()
+                        .for_each(|(render, index)| {
+                            dbg!(index);
+
+                            let mut img = image::DynamicImage::new(
+                                render.1 as u32,
+                                render.2 as u32,
+                                image::ColorType::Rgba8,
+                            );
+
+                            for i in 0..(render.1 * render.2) {
+                                img.put_pixel(
+                                    (i % render.1) as u32,
+                                    (i / render.1) as u32,
+                                    Rgba([
+                                        *(render.0.get((4 * i + 0) as usize).unwrap()),
+                                        *(render.0.get((4 * i + 1) as usize).unwrap()),
+                                        *(render.0.get((4 * i + 2) as usize).unwrap()),
+                                        *(render.0.get((4 * i + 3) as usize).unwrap()),
+                                    ]),
+                                );
+                            }
+                            
+                            let Ok(file_name) = self.path.file_stem()
+                                    .ok_or(anyhow!("No filename?"))
+                                    .and_then(|s| {
+                                        s.to_str().ok_or(anyhow!("Couldn't convert to &str"))
+                                    })
+                                    .and_then(|s| Ok(s.to_string() + format!(
+                                                " (page {} of {})",
+                                                index + 1,
+                                                doc_page_count
+                                            )
+                                            .as_str())
+                                    ) else {
+                                        return
+                                    };
+
+                            let path = pdf_folder.join(
+                               file_name
+                                    
+                            ).with_extension(extension);
+                            let _ = img.save_with_format(
+                                path,
+                                img_format.clone(),
+                            );
+                        });
+
+                    Ok(())
+                }
                 OtherFormats::Svg => todo!("TODO: SVG conversion"),
             },
         }
     }
 }
 
-pub struct ImageConverterOptions {
+pub struct ImageConvertionOptions {
     pdf_render_dpi: u64,
     pdf_render_to_separate_pages: bool,
 }
 
-impl Default for ImageConverterOptions {
+impl Default for ImageConvertionOptions {
     fn default() -> Self {
         Self {
-            pdf_render_dpi: 300,
+            pdf_render_dpi: 100,
             pdf_render_to_separate_pages: true,
         }
     }
@@ -90,37 +175,12 @@ impl Default for ImageConverterOptions {
 
 pub struct ImageConverter {
     pub images: Vec<(Image, ConversionState)>,
-    pub options: ImageConverterOptions,
 }
 
 impl ImageConverter {
     pub fn new() -> Self {
-        Self {
-            images: vec![],
-            options: ImageConverterOptions::default(),
-        }
+        Self { images: vec![] }
     }
-
-    pub fn new_with_options(options: ImageConverterOptions) -> Self {
-        Self {
-            images: vec![],
-            options,
-        }
-    }
-
-    // pub fn convert<T: 'static>(&mut self, cx: &mut gpui::Context<T>, img_format: ImageFormat) {
-    //     self.images
-    //         .iter_mut()
-    //         .for_each(|(image, conversion_state)| {
-    //             *conversion_state = ConversionState::Processing;
-    //             cx.notify();
-    //             match image.convert(&img_format) {
-    //                 Ok(_) => *conversion_state = ConversionState::Success,
-    //                 Err(_) => *conversion_state = ConversionState::Fail,
-    //             }
-    //             cx.notify();
-    //         });
-    // }
 
     pub fn add_image_from_path(&mut self, path: impl AsRef<Path>) -> Result<()> {
         if self
