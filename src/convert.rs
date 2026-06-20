@@ -66,7 +66,10 @@ impl Render for ConvertView {
                                         app.add_image_button_disabled = true;
                                         cx.notify();
                                         let paths = rfd::FileDialog::new()
-                                            .add_filter("Images", &["png", "jpeg", "gif", "webp", "pdf"])
+                                            .add_filter(
+                                                "Images",
+                                                &["png", "jpeg", "gif", "webp", "pdf"],
+                                            )
                                             .pick_files();
 
                                         if let Some(paths) = paths {
@@ -164,15 +167,15 @@ impl Render for ConvertView {
             )
             .child(div().size_full().overflow_y_hidden().pipe(|d| {
                 let n_images = self.converter.images.len();
-                if n_images > 0 {
-                    d.child(
+                
+                d.child(
+                    div().overflow_y_scrollbar().size_full().pb_4().child(
                         div()
-                            .mb_4()
                             .v_flex()
-                            .overflow_y_scrollbar()
                             .border_1()
                             .border_color(cx.theme().border)
                             .rounded_md()
+                            .size_full()
                             .children(self.converter.images.iter().enumerate().map(
                                 |(i, (image, _conversion_state))| {
                                     let key = image
@@ -232,10 +235,8 @@ impl Render for ConvertView {
                                         })
                                 },
                             )),
-                    )
-                } else {
-                    d
-                }
+                    ),
+                )
             }))
     }
 }

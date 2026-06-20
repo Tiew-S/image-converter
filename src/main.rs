@@ -1,20 +1,18 @@
 use gpui::*;
-use gpui_component::{
-    *,
-};
+use gpui_component::*;
 
-use crate::app::ConvertView;
+use crate::convert::ConvertView;
+mod convert;
 mod things;
-mod app;
 
 pub struct App {
-    convert_view_entity: Entity<app::ConvertView>
+    convert_view_entity: Entity<convert::ConvertView>,
 }
 
 impl App {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self {
-           convert_view_entity: cx.new(|cx| ConvertView::new(window, cx))
+            convert_view_entity: cx.new(|cx| ConvertView::new(window, cx)),
         }
     }
 }
@@ -24,10 +22,8 @@ impl Render for App {
         div()
             .size_full()
             .v_flex()
-            .child(TitleBar::new().child("Image Converter"))
-            .child(
-                self.convert_view_entity.clone()
-            )
+            .child(TitleBar::new().child("Image Converter").text_sm())
+            .child(self.convert_view_entity.clone())
     }
 }
 
@@ -49,6 +45,10 @@ fn main() {
         cx.spawn(async move |cx| {
             cx.open_window(
                 WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(Bounds {
+                        size: gpui::Size::new(px(400.), px(600.)),
+                        origin: gpui::Point::new(px(200.), px(100.))
+                    })),
                     titlebar: Some(TitleBar::title_bar_options()),
                     ..Default::default()
                 },

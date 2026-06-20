@@ -6,7 +6,6 @@ use std::{
     ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex}
 };
 
 #[derive(PartialEq, Clone, Copy)]
@@ -80,33 +79,30 @@ impl Image {
             ImageFormat::Other(fmt) => match fmt {
                 OtherFormats::Pdf => {
                     let doc = PdfDocument::open(&self.path).map_err(|s| anyhow!(s))?;
-                    let mut pdf_folder = self.path.clone();
 
-                    pdf_folder.pop();
-                    pdf_folder.push(self.path.file_stem().ok_or(anyhow!("No file stem"))?);
-                    fs::create_dir(&pdf_folder)?;
                     let extension = img_format
-                                .extensions_str()
-                                .first()
-                                .ok_or(anyhow!("No &str for format {:?}, somehow", img_format))?;
+                        .extensions_str()
+                        .first()
+                        .ok_or(anyhow!("No &str for format {:?}, somehow", img_format))?;
                     let doc_page_count = doc.page_count();
                     let renders: Vec<((Vec<u8>, i32, i32), isize)> = (0..doc.page_count())
                         .filter_map(|index| {
-                            dbg!(index);
-
                             let render = doc.render_page(index, options.pdf_render_dpi as f32);
-                   
+
                             if render.is_err() {
                                 dbg!("Couln't render");
                                 return None;
                             }
                             Some((render.unwrap(), index))
-                        }).collect();
-                    renders
-                        .par_iter()
-                        .for_each(|(render, index)| {
-                            dbg!(index);
+                        })
+                        .collect();
+                    if options.pdf_render_to_separate_pages {
+                        let mut pdf_folder = self.path.clone();
 
+                        pdf_folder.pop();
+                        pdf_folder.push(self.path.file_stem().ok_or(anyhow!("No file stem"))?);
+                        fs::create_dir(&pdf_folder)?;
+                        renders.par_iter().for_each(|(render, index)| {
                             let mut img = image::DynamicImage::new(
                                 render.1 as u32,
                                 render.2 as u32,
@@ -125,31 +121,50 @@ impl Image {
                                     ]),
                                 );
                             }
-                            
-                            let Ok(file_name) = self.path.file_stem()
-                                    .ok_or(anyhow!("No filename?"))
-                                    .and_then(|s| {
-                                        s.to_str().ok_or(anyhow!("Couldn't convert to &str"))
-                                    })
-                                    .and_then(|s| Ok(s.to_string() + format!(
-                                                " (page {} of {})",
-                                                index + 1,
-                                                doc_page_count
-                                            )
-                                            .as_str())
-                                    ) else {
-                                        return
-                                    };
 
-                            let path = pdf_folder.join(
-                               file_name
-                                    
-                            ).with_extension(extension);
-                            let _ = img.save_with_format(
-                                path,
-                                img_format.clone(),
-                            );
+                            let Ok(file_name) = self
+                                .path
+                                .file_stem()
+                                .ok_or(anyhow!("No filename?"))
+                                .and_then(|s| s.to_str().ok_or(anyhow!("Couldn't convert to &str")))
+                                .and_then(|s| {
+                                    Ok(s.to_string()
+                                        + format!(" (page {} of {})", index + 1, doc_page_count)
+                                            .as_str())
+                                })
+                            else {
+                                return;
+                            };
+
+                            let path = pdf_folder.join(file_name).with_extension(extension);
+                            let _ = img.save_with_format(path, img_format.clone());
                         });
+                    } else {
+                        let mut img = image::DynamicImage::new(
+                            renders.iter().max_by_key(|(r, _)| r.1 ).and_then(|r|Some(r.0.1)).unwrap_or(0) as u32,
+                            renders.iter().map(|(r, _)| r.2).sum::<i32>() as u32,
+                            image::ColorType::Rgba8,
+                        );
+                        let mut height_step = 0;
+                        for (render, _) in renders {
+                            for i in 0..(render.1 * render.2) {
+                                img.put_pixel(
+                                    (i % render.1) as u32,
+                                    height_step + (i / render.1) as u32,
+                                    Rgba([
+                                        *(render.0.get((4 * i + 0) as usize).unwrap()),
+                                        *(render.0.get((4 * i + 1) as usize).unwrap()),
+                                        *(render.0.get((4 * i + 2) as usize).unwrap()),
+                                        *(render.0.get((4 * i + 3) as usize).unwrap()),
+                                    ]),
+                                );
+                            }
+                            height_step += render.2 as u32;
+                        };
+
+                        let path = self.path.with_extension(extension);
+                        let _ = img.save_with_format(path, img_format.clone());
+                    }
 
                     Ok(())
                 }
@@ -168,7 +183,7 @@ impl Default for ImageConvertionOptions {
     fn default() -> Self {
         Self {
             pdf_render_dpi: 100,
-            pdf_render_to_separate_pages: true,
+            pdf_render_to_separate_pages: false,
         }
     }
 }
