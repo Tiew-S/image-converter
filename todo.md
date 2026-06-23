@@ -1,0 +1,7 @@
+- preview
+- drag and drop file
+- settings
+- right click menu
+- clear images
+- incremental updating on image converter convert all
+- handle overwriting files gracefully

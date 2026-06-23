@@ -1,20 +1,20 @@
 use anyhow::{Result, anyhow};
+use gpui::Context;
 use image::{GenericImage, Rgba};
 use pdfium_bind::*;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+    IntoParallelRefMutIterator, ParallelIterator,
+};
 use std::{
     ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
+    thread,
 };
 
-#[derive(PartialEq, Clone, Copy)]
-pub enum ConversionState {
-    Untouched,
-    Processing,
-    Success,
-    Fail,
-}
+
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum OtherFormats {
@@ -59,9 +59,8 @@ impl Image {
     pub fn convert(
         &self,
         img_format: &image::ImageFormat,
-        options: Option<ImageConvertionOptions>,
+        options: &ImageConvertionOptions,
     ) -> Result<()> {
-        let options = options.unwrap_or_default();
         match self.format {
             ImageFormat::Normal(_) => {
                 let img = image::ImageReader::open(&self.path)?.decode()?;
@@ -141,7 +140,11 @@ impl Image {
                         });
                     } else {
                         let mut img = image::DynamicImage::new(
-                            renders.iter().max_by_key(|(r, _)| r.1 ).and_then(|r|Some(r.0.1)).unwrap_or(0) as u32,
+                            renders
+                                .iter()
+                                .max_by_key(|(r, _)| r.1)
+                                .and_then(|r| Some(r.0.1))
+                                .unwrap_or(0) as u32,
                             renders.iter().map(|(r, _)| r.2).sum::<i32>() as u32,
                             image::ColorType::Rgba8,
                         );
@@ -160,7 +163,7 @@ impl Image {
                                 );
                             }
                             height_step += render.2 as u32;
-                        };
+                        }
 
                         let path = self.path.with_extension(extension);
                         let _ = img.save_with_format(path, img_format.clone());
@@ -174,7 +177,9 @@ impl Image {
     }
 }
 
+#[derive(Clone)]
 pub struct ImageConvertionOptions {
+    svg_render_dpi: u64,
     pdf_render_dpi: u64,
     pdf_render_to_separate_pages: bool,
 }
@@ -182,35 +187,54 @@ pub struct ImageConvertionOptions {
 impl Default for ImageConvertionOptions {
     fn default() -> Self {
         Self {
+            svg_render_dpi: 300,
             pdf_render_dpi: 100,
             pdf_render_to_separate_pages: false,
         }
     }
 }
 
+#[derive(Clone)]
+pub enum ImageConverterMessages {
+    StartConversion,
+    EndConversion,
+    UpdatedImageConversionState,
+}
+
+#[derive(Clone)]
 pub struct ImageConverter {
-    pub images: Vec<(Image, ConversionState)>,
+    images: Vec<Image>,
+    pub options: ImageConvertionOptions,
 }
 
 impl ImageConverter {
     pub fn new() -> Self {
-        Self { images: vec![] }
+        Self {
+            images: vec![],
+            options: ImageConvertionOptions::default(),
+        }
+    }
+
+    pub fn get_images(&self) -> &Vec<Image> {
+        &self.images
     }
 
     pub fn add_image_from_path(&mut self, path: impl AsRef<Path>) -> Result<()> {
         if self
             .images
             .iter()
-            .map(|(i, _)| &i.path)
+            .map(|i| &i.path)
             .find(|p| p.as_path() == path.as_ref())
             .is_some()
         {
             return Err(anyhow!("Image paths must be unique"));
         }
-        self.images.push((
-            Image::from_path(path.as_ref().to_path_buf())?,
-            ConversionState::Untouched,
-        ));
+        self.images
+            .push(Image::from_path(path.as_ref().to_path_buf())?);
         Ok(())
+    }
+
+    pub fn remove_image(&mut self, index: usize) {
+        self.images.remove(index);
     }
 }

@@ -1,4 +1,4 @@
-use std::ffi::OsStr;
+use std::{collections::HashMap, ffi::OsStr, path::PathBuf, thread};
 
 use gpui::*;
 use gpui_component::{
@@ -7,17 +7,28 @@ use gpui_component::{
     label::Label,
     scroll::ScrollableElement,
     select::{Select, SelectState},
+    spinner::Spinner,
     *,
 };
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tap::Pipe;
 
-use crate::things;
-use crate::things::{ConversionState, ImageConverter};
+use crate::things::ImageConverter;
+use crate::things::{self, ImageConverterMessages};
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum ConversionState {
+    Untouched,
+    Processing,
+    Success,
+    Fail,
+}
 
 pub struct ConvertView {
     converter: ImageConverter,
+    conversion_in_progress: bool,
+    conversion_states: HashMap<std::path::PathBuf, ConversionState>,
     add_image_button_disabled: bool,
-    convert_button_disabled: bool,
     end_format_select: Entity<SelectState<Vec<&'static str>>>,
 }
 
@@ -25,8 +36,9 @@ impl ConvertView {
     pub fn new<T>(window: &mut Window, cx: &mut Context<T>) -> Self {
         Self {
             converter: ImageConverter::new(),
+            conversion_states: HashMap::new(),
+            conversion_in_progress: false,
             add_image_button_disabled: false,
-            convert_button_disabled: false,
             end_format_select: cx.new(|cx| {
                 SelectState::new(
                     vec!["PNG", "JPEG", "GIF", "WEBP", "TIFF", "AVIF"],
@@ -92,7 +104,7 @@ impl Render for ConvertView {
                             .child(Select::new(&self.end_format_select))
                             .child(
                                 Button::new("convert")
-                                    .disabled(self.convert_button_disabled)
+                                    .disabled(self.conversion_in_progress)
                                     .primary()
                                     .label("Convert")
                                     .on_click(cx.listener(|this, _, _, cx| {
@@ -114,51 +126,69 @@ impl Render for ConvertView {
                                             Some(&"AVIF") => image::ImageFormat::Avif,
                                             _ => return,
                                         };
+
                                         cx.spawn(async move |this, cx| {
-                                            let _ = this.update(cx, |this, cx| {
-                                                this.convert_button_disabled = true;
+                                            this.update(cx, |this, cx| {
+                                                this.conversion_in_progress = false;
                                                 cx.notify();
-                                            });
-
-                                            let a = this.read_with(cx, |app, _cx| {
-                                                app.converter.images.clone()
-                                            });
-                                            if a.is_err() {
+                                            })
+                                            .ok();
+                                            let Ok(conv) =
+                                                this.read_with(cx, |c, _| c.converter.clone())
+                                            else {
                                                 return;
-                                            }
-                                            let a = a.unwrap();
+                                            };
+                                            let (send, mut recv) = tokio::sync::mpsc::channel::<
+                                                Option<(PathBuf, ConversionState)>,
+                                            >(
+                                                100
+                                            );
+                                            
+                                            cx.background_spawn(async move {
+                                                conv.get_images().par_iter().for_each(|image| {
+                                                    send.blocking_send(Some((
+                                                        image.path.clone(),
+                                                        ConversionState::Processing,
+                                                    )))
+                                                    .ok();
+                                                    let res = image.convert(&fmt, &conv.options);
+                                                    match res {
+                                                        Ok(_) => send.blocking_send(Some((
+                                                            image.path.clone(),
+                                                            ConversionState::Success,
+                                                        ))),
+                                                        Err(_) => send.blocking_send(Some((
+                                                            image.path.clone(),
+                                                            ConversionState::Fail,
+                                                        ))),
+                                                    }
+                                                    .ok();
+                                                });
+                                                dbg!("Finished");
+                                                send.blocking_send(None).ok();
+                                            })
+                                            .detach();
 
-                                            for (i, (image, _)) in a.into_iter().enumerate() {
-                                                let _ = this.update(cx, |this, cx| {
-                                                    this.converter.images.get_mut(i).and_then(
-                                                        |im: &mut (_, ConversionState)| {
-                                                            im.1 = ConversionState::Processing;
-                                                            Some(im)
-                                                        },
-                                                    );
-                                                    cx.notify();
-                                                });
-                                                let res = cx
-                                                    .background_spawn(async move {
-                                                        image.convert(&fmt, None)
-                                                    })
-                                                    .await;
-                                                let _ = this.update(cx, |this, _cx| {
-                                                    this.converter.images.get_mut(i).and_then(
-                                                        |im| {
-                                                            im.1 = match res {
-                                                                Ok(_) => ConversionState::Success,
-                                                                Err(_) => ConversionState::Fail,
-                                                            };
-                                                            Some(im)
-                                                        },
-                                                    );
-                                                });
+                                            while let Some(msg) = recv.recv().await {
+                                                match msg {
+                                                    Some(msg) => {
+                                                        dbg!(&msg);
+                                                        this.update(cx, |this, cx| {
+                                                            this.conversion_states
+                                                                .insert(msg.0, msg.1);
+                                                            cx.notify();
+                                                        })
+                                                        .ok();
+                                                    }
+                                                    None => break,
+                                                }
                                             }
-                                            let _ = this.update(cx, |this, cx| {
-                                                this.convert_button_disabled = false;
+
+                                            this.update(cx, |this, cx| {
+                                                this.conversion_in_progress = false;
                                                 cx.notify();
-                                            });
+                                            })
+                                            .ok();
                                         })
                                         .detach();
                                     })),
@@ -166,8 +196,8 @@ impl Render for ConvertView {
                     ),
             )
             .child(div().size_full().overflow_y_hidden().pipe(|d| {
-                let n_images = self.converter.images.len();
-                
+                let n_images = self.converter.get_images().len();
+
                 d.child(
                     div().overflow_y_scrollbar().size_full().pb_4().child(
                         div()
@@ -176,8 +206,8 @@ impl Render for ConvertView {
                             .border_color(cx.theme().border)
                             .rounded_md()
                             .size_full()
-                            .children(self.converter.images.iter().enumerate().map(
-                                |(i, (image, _conversion_state))| {
+                            .children(self.converter.get_images().iter().enumerate().map(
+                                |(i, image)| {
                                     let key = image
                                         .path
                                         .clone()
@@ -187,32 +217,50 @@ impl Render for ConvertView {
                                     let hovering =
                                         window.use_keyed_state(key.clone(), cx, |_, _| false);
                                     let hovering_clone = hovering.clone();
+                                    let conversion_state = self
+                                        .conversion_states
+                                        .get(&image.path)
+                                        .unwrap_or(&ConversionState::Untouched);
 
                                     div()
                                         .id(key)
                                         .on_hover(move |hover, _, cx| hovering.write(cx, *hover))
                                         .h_flex()
+                                        .gap_2()
                                         .p_2()
-                                        .child(
-                                            Label::new(
-                                                image
-                                                    .path
-                                                    .file_name()
-                                                    .and_then(|f| f.to_str())
-                                                    .unwrap_or(""),
-                                            )
-                                            .mr_auto(),
-                                        )
+                                        .child(Label::new(
+                                            image
+                                                .path
+                                                .file_name()
+                                                .and_then(|f| f.to_str())
+                                                .unwrap_or(""),
+                                        ))
+                                        .pipe(|d: Stateful<Div>| match conversion_state {
+                                            ConversionState::Untouched => d,
+                                            ConversionState::Processing => d.child(Spinner::new()),
+                                            ConversionState::Success => d.child(
+                                                Icon::new(IconName::Check)
+                                                    .text_color(cx.theme().success),
+                                            ),
+                                            ConversionState::Fail => d.child(
+                                                Icon::new(IconName::Close)
+                                                    .text_color(cx.theme().danger),
+                                            ),
+                                        })
                                         .pipe(|d| {
+                                            let path = image.path.clone();
                                             if hovering_clone.read(cx).clone() {
                                                 d.child(
                                                     Button::new("close")
                                                         .ghost()
                                                         .icon(IconName::Close)
                                                         .size_5()
+                                                        .ml_auto()
                                                         .on_click(cx.listener(
                                                             move |this, _, _, cx| {
-                                                                this.converter.images.remove(i);
+                                                                this.converter.remove_image(i);
+                                                                this.conversion_states
+                                                                    .remove(&path);
                                                                 cx.notify();
                                                             },
                                                         )),
