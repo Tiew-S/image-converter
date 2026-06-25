@@ -20,13 +20,16 @@ gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
 anyhow = "1.0"
 dark-light = "2.0.0"
-tap = "1.0.1"
 image = "0.25.10"
 pdfium-bind = "0.1.0"
 rfd = "0.17.2"
 rayon = "1.12.0"
 parking_lot = "0.12.5"
 tokio = {version="1.52.3", features=["sync"]}
+confy = "2.0.0"
+serde_derive = "1.0.228"
+serde = "1.0.228"
+regex = "1.12.4"
 
 # The profile that 'dist' will build with
 [profile.dist]

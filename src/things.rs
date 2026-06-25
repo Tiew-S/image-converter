@@ -6,6 +6,7 @@ use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
     IntoParallelRefMutIterator, ParallelIterator,
 };
+use serde::{Serialize, Deserialize};
 use std::{
     ffi::{OsStr, OsString},
     fs,
@@ -14,6 +15,18 @@ use std::{
     thread,
 };
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Settings {
+    pub image_convertion_options: ImageConvertionOptions
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            image_convertion_options: Default::default()
+        }
+    }
+}
 
 
 #[derive(PartialEq, Clone, Copy)]
@@ -100,7 +113,7 @@ impl Image {
 
                         pdf_folder.pop();
                         pdf_folder.push(self.path.file_stem().ok_or(anyhow!("No file stem"))?);
-                        fs::create_dir(&pdf_folder)?;
+                        fs::create_dir(&pdf_folder).ok();
                         renders.par_iter().for_each(|(render, index)| {
                             let mut img = image::DynamicImage::new(
                                 render.1 as u32,
@@ -177,11 +190,11 @@ impl Image {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ImageConvertionOptions {
-    svg_render_dpi: u64,
-    pdf_render_dpi: u64,
-    pdf_render_to_separate_pages: bool,
+    pub svg_render_dpi: u64,
+    pub pdf_render_dpi: u64,
+    pub pdf_render_to_separate_pages: bool,
 }
 
 impl Default for ImageConvertionOptions {
@@ -189,17 +202,11 @@ impl Default for ImageConvertionOptions {
         Self {
             svg_render_dpi: 300,
             pdf_render_dpi: 100,
-            pdf_render_to_separate_pages: false,
+            pdf_render_to_separate_pages: true
         }
     }
 }
 
-#[derive(Clone)]
-pub enum ImageConverterMessages {
-    StartConversion,
-    EndConversion,
-    UpdatedImageConversionState,
-}
 
 #[derive(Clone)]
 pub struct ImageConverter {

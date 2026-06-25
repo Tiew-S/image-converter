@@ -10,11 +10,10 @@ use gpui_component::{
     spinner::Spinner,
     *,
 };
+use gpui::prelude::FluentBuilder;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use tap::Pipe;
 
 use crate::things::ImageConverter;
-use crate::things::{self, ImageConverterMessages};
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum ConversionState {
@@ -80,7 +79,7 @@ impl Render for ConvertView {
                                         let paths = rfd::FileDialog::new()
                                             .add_filter(
                                                 "Images",
-                                                &["png", "jpeg", "gif", "webp", "pdf"],
+                                                &["png", "jpg", "jpeg", "gif", "webp", "pdf"],
                                             )
                                             .pick_files();
 
@@ -143,7 +142,7 @@ impl Render for ConvertView {
                                             >(
                                                 100
                                             );
-                                            
+
                                             cx.background_spawn(async move {
                                                 conv.get_images().par_iter().for_each(|image| {
                                                     send.blocking_send(Some((
@@ -157,10 +156,13 @@ impl Render for ConvertView {
                                                             image.path.clone(),
                                                             ConversionState::Success,
                                                         ))),
-                                                        Err(_) => send.blocking_send(Some((
-                                                            image.path.clone(),
-                                                            ConversionState::Fail,
-                                                        ))),
+                                                        Err(e) => {
+                                                            dbg!(e);
+                                                            send.blocking_send(Some((
+                                                                image.path.clone(),
+                                                                ConversionState::Fail,
+                                                            )))
+                                                        }
                                                     }
                                                     .ok();
                                                 });
@@ -195,7 +197,7 @@ impl Render for ConvertView {
                             ),
                     ),
             )
-            .child(div().size_full().overflow_y_hidden().pipe(|d| {
+            .child(div().size_full().overflow_y_hidden().map(|d| {
                 let n_images = self.converter.get_images().len();
 
                 d.child(
@@ -235,7 +237,7 @@ impl Render for ConvertView {
                                                 .and_then(|f| f.to_str())
                                                 .unwrap_or(""),
                                         ))
-                                        .pipe(|d: Stateful<Div>| match conversion_state {
+                                        .map(|d: Stateful<Div>| match conversion_state {
                                             ConversionState::Untouched => d,
                                             ConversionState::Processing => d.child(Spinner::new()),
                                             ConversionState::Success => d.child(
@@ -247,7 +249,7 @@ impl Render for ConvertView {
                                                     .text_color(cx.theme().danger),
                                             ),
                                         })
-                                        .pipe(|d| {
+                                        .map(|d| {
                                             let path = image.path.clone();
                                             if hovering_clone.read(cx).clone() {
                                                 d.child(
@@ -269,7 +271,7 @@ impl Render for ConvertView {
                                                 d
                                             }
                                         })
-                                        .pipe(|d| {
+                                        .map(|d| {
                                             if i % 2 == 0 {
                                                 d
                                             } else {
