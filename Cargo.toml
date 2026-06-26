@@ -30,6 +30,7 @@ confy = "2.0.0"
 serde_derive = "1.0.228"
 serde = "1.0.228"
 regex = "1.12.4"
+open = "5.3.5"
 
 # The profile that 'dist' will build with
 [profile.dist]
