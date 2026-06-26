@@ -1,7 +1,7 @@
-- preview
+- preview X
 - drag and drop file
-- settings
-- right click menu
-- clear images
-- incremental updating on image converter convert all
-- handle overwriting files gracefully
+- settings X
+- right click menu X
+- clear images X
+- incremental updating on image converter convert all X
+- handle overwriting files gracefully X

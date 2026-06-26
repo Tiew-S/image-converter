@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ffi::OsStr, path::PathBuf, thread};
+use std::{any::Any, collections::HashMap, ffi::OsStr, path::PathBuf, thread};
 
 use anyhow::Error;
 use gpui::prelude::FluentBuilder;
@@ -161,7 +161,7 @@ impl ConvertView {
                                     while let Some(msg) = recv.recv().await {
                                         match msg {
                                             Some(msg) => {
-                                                dbg!(&msg);
+                                                //dbg!(&msg);
                                                 this.update(cx, |this, cx| {
                                                     this.conversion_states.insert(msg.0, msg.1);
                                                     cx.notify();
@@ -192,6 +192,27 @@ impl ConvertView {
             .rounded_md()
             .flex_grow_1()
             .min_h_full()
+            .on_drop(
+                cx.listener(move |this, external_paths: &ExternalPaths, _window, cx| {
+                    for path in external_paths.paths() {
+                        let _ = this.converter.add_image_from_path(path);
+                    }
+                    cx.notify();
+                }),
+            )
+            .when(!self.converter.get_images().is_empty(), |d| {
+                d.child(
+                    Button::new("clear-images")
+                        .label("Clear")
+                        .ghost()
+                        .xsmall()
+                        .m_1()
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.converter.clear_images();
+                            cx.notify();
+                        })),
+                )
+            })
             .children(
                 self.converter
                     .get_images()
@@ -214,37 +235,58 @@ impl ConvertView {
                         let path2 = image.path.clone();
 
                         div()
-                            .id(key)
+                            .id(key.clone())
                             .on_hover(move |hover, _, cx| hovering.write(cx, *hover))
                             .h_flex()
                             .gap_2()
                             .p_2()
-                            .child(Label::new(
-                                image
-                                    .path
-                                    .file_name()
-                                    .and_then(|f| f.to_str())
-                                    .unwrap_or(""),
-                            ))
-                            .map(|d: Stateful<Div>| match conversion_state {
-                                ConversionState::Untouched => d,
-                                ConversionState::Processing => d.child(Spinner::new()),
-                                ConversionState::Success => d.child(
-                                    Icon::new(IconName::Check).text_color(cx.theme().success),
-                                ),
-                                ConversionState::Fail(_) => d.child(
-                                    Icon::new(IconName::Close).text_color(cx.theme().danger),
-                                ),
-                            })
+                            .child(
+                                div()
+                                    .id(key)
+                                    .h_flex()
+                                    .flex_grow_1()
+                                    .text_ellipsis()
+                                    .child(Label::new(
+                                        image
+                                            .path
+                                            .file_name()
+                                            .and_then(|f| f.to_str())
+                                            .unwrap_or(""),
+                                    ))
+                                    .map(|d| match conversion_state {
+                                        ConversionState::Untouched => d,
+                                        ConversionState::Processing => d.child(Spinner::new()),
+                                        ConversionState::Success => d.child(
+                                            Icon::new(IconName::Check)
+                                                .text_color(cx.theme().success),
+                                        ),
+                                        ConversionState::Fail(e) => d
+                                            .child(
+                                                Icon::new(IconName::Close)
+                                                    .text_color(cx.theme().danger),
+                                            )
+                                            .child(
+                                                Label::new(e)
+                                                    .ml_2()
+                                                    .text_color(cx.theme().muted_foreground)
+                                                    .italic(),
+                                            ),
+                                    })
+                                    .on_double_click(move |_, _, _| {
+                                        let _ = open::that(path.clone());
+                                    }),
+                            )
                             .map(|d| {
                                 let path = image.path.clone();
+
                                 if hovering_clone.read(cx).clone() {
                                     d.child(
                                         Button::new("close")
+                                            .absolute()
+                                            .right_2()
                                             .ghost()
                                             .icon(IconName::Close)
-                                            .size_5()
-                                            .ml_auto()
+                                            .size_6()
                                             .on_click(cx.listener(move |this, _, _, cx| {
                                                 cx.stop_propagation();
                                                 this.converter.remove_image(i);
@@ -253,7 +295,14 @@ impl ConvertView {
                                             })),
                                     )
                                 } else {
-                                    d
+                                    d.child(
+                                        div()
+                                            .id("no-clickey")
+                                            .absolute()
+                                            .right_2()
+                                            .size_6()
+                                            .on_any_mouse_down(|_, _, cx| cx.stop_propagation()),
+                                    )
                                 }
                             })
                             .map(|d| {
@@ -267,9 +316,6 @@ impl ConvertView {
                                         d.bg(cx.theme().muted.alpha(0.25))
                                     }
                                 }
-                            })
-                            .on_double_click(move |_, _, _| {
-                                let _ = open::that(path.clone());
                             })
                             .context_menu(move |menu, _window, _cx| {
                                 let path = path2.clone();
@@ -294,21 +340,18 @@ impl Render for ConvertView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .p_4()
+            .gap_4()
             .flex()
             .size_full()
             .flex_col()
             .overflow_hidden()
             .child(
-                div()
-                    .flex_1()
-                    .min_h_0() 
-                    .overflow_hidden()
-                    .child(
-                        div()
-                            .h_full()
-                            .overflow_y_scrollbar()
-                            .child(self.images_view(window, cx)),
-                    ),
+                div().flex_1().min_h_0().overflow_hidden().child(
+                    div()
+                        .h_full()
+                        .overflow_y_scrollbar()
+                        .child(self.images_view(window, cx)),
+                ),
             )
             .child(self.controls(cx))
     }

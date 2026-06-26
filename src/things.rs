@@ -244,4 +244,8 @@ impl ImageConverter {
     pub fn remove_image(&mut self, index: usize) {
         self.images.remove(index);
     }
+
+    pub fn clear_images(&mut self) {
+        self.images.clear();
+    }
 }
