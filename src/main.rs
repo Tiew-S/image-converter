@@ -1,4 +1,4 @@
-//#![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 
 use gpui::{prelude::FluentBuilder, *};
 use gpui_component::{
