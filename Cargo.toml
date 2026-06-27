@@ -6,11 +6,10 @@ repository = "https://github.com/Tiew-S/image-converter"
 version = "0.1.0"
 edition = "2024"
 
-[package.metadata.wix]
-upgrade-guid = "21C8673E-503C-4C52-B6B0-1AF2C8B8BC26"
-path-guid = "FCCD5BD5-1DE8-4E7F-9926-7FADF5BA6CE0"
-license = false
-eula = false
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
 
 [dependencies]
 gpui = { git = "https://github.com/zed-industries/zed" }
@@ -31,8 +30,10 @@ serde_derive = "1.0.228"
 serde = "1.0.228"
 regex = "1.12.4"
 open = "5.3.5"
+resvg = "0.47.0"
 
-# The profile that 'dist' will build with
-[profile.dist]
-inherits = "release"
-lto = "thin"
+[package.metadata.bundle]
+name = "ImageConverter"
+identifier = "com.tiews.imageconverter"
+icon = ["assets/icon.png", "assets/icon.ico"]
+resources = []

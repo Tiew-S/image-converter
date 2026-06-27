@@ -68,7 +68,7 @@ impl ConvertView {
                                 let paths = rfd::FileDialog::new()
                                     .add_filter(
                                         "Images",
-                                        &["png", "jpg", "jpeg", "gif", "webp", "pdf"],
+                                        &["png", "jpg", "jpeg", "gif", "webp", "svg", "pdf"],
                                     )
                                     .pick_files();
 
@@ -320,12 +320,22 @@ impl ConvertView {
                             .context_menu(move |menu, _window, _cx| {
                                 let path = path2.clone();
                                 let path2 = path2.clone();
-                                menu.item(PopupMenuItem::new("Open").on_click(move |_, _, _| {
-                                    let _ = open::that(path.clone());
+                                let path3 = path2.clone();
+
+                                menu.item(
+                                    PopupMenuItem::element(move |_window, cx| {
+                                        Label::new(path.to_str().unwrap_or_default())
+                                            .w_48()
+                                            .text_color(cx.theme().muted_foreground)
+                                    })
+                                    .disabled(true),
+                                )
+                                .item(PopupMenuItem::new("Open").on_click(move |_, _, _| {
+                                    let _ = open::that(path2.clone());
                                 }))
                                 .item(
                                     PopupMenuItem::new("Open folder").on_click(move |_, _, _| {
-                                        if let Some(p) = path2.clone().parent() {
+                                        if let Some(p) = path3.clone().parent() {
                                             let _ = open::that(p);
                                         }
                                     }),

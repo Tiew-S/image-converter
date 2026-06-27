@@ -1,7 +1,8 @@
+//#![windows_subsystem = "windows"]
+
 use gpui::{prelude::FluentBuilder, *};
 use gpui_component::{
     button::{Button, ButtonVariants},
-    dialog::*,
     label::Label,
     separator::Separator,
     *,

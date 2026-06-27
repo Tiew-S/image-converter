@@ -1,6 +1,7 @@
 - preview X
 - drag and drop file
 - settings X
+- svg
 - right click menu X
 - clear images X
 - incremental updating on image converter convert all X

@@ -6,7 +6,11 @@ use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
     IntoParallelRefMutIterator, ParallelIterator,
 };
-use serde::{Serialize, Deserialize};
+use resvg::{
+    self,
+    usvg::{self, Transform},
+};
+use serde::{Deserialize, Serialize};
 use std::{
     ffi::{OsStr, OsString},
     fs,
@@ -17,25 +21,24 @@ use std::{
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Settings {
-    pub image_convertion_options: ImageConvertionOptions
+    pub image_convertion_options: ImageConvertionOptions,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            image_convertion_options: Default::default()
+            image_convertion_options: Default::default(),
         }
     }
 }
 
-
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum OtherFormats {
     Pdf,
     Svg,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ImageFormat {
     Normal(image::ImageFormat),
     Other(OtherFormats),
@@ -74,7 +77,7 @@ impl Image {
         img_format: &image::ImageFormat,
         options: &ImageConvertionOptions,
     ) -> Result<()> {
-        match self.format {
+        match dbg!(self.format) {
             ImageFormat::Normal(_) => {
                 let img = image::ImageReader::open(&self.path)?.decode()?;
                 img.save_with_format(
@@ -184,7 +187,47 @@ impl Image {
 
                     Ok(())
                 }
-                OtherFormats::Svg => todo!("TODO: SVG conversion"),
+                OtherFormats::Svg => {
+                    dbg!("svg");
+                    let tree = usvg::Tree::from_str(
+                        fs::read_to_string(&self.path)?.as_str(),
+                        &usvg::Options::default(),
+                    )?;
+                    let scaling = options.svg_render_dpi as f32 / 96.;
+                    let (width, height) = (tree.size().width() * scaling, tree.size().height() * scaling);
+
+                    let mut pixmap = resvg::tiny_skia::Pixmap::new(width as u32, height as u32) 
+                        .ok_or(anyhow!("Couldn't create PixMap"))?;
+                    
+                    resvg::render(&tree, Transform::from_scale(scaling as f32, scaling as f32), &mut pixmap.as_mut());
+                    let data = pixmap.data().to_vec();
+                    
+                    let mut img = image::DynamicImage::new(width as u32, height as u32, image::ColorType::Rgba8);
+
+                    for i in 0..((width * height) as u32) {
+                        img.put_pixel(
+                            i % width as u32,
+                            i / height as u32,
+                            Rgba([
+                                *(data.get((4 * i + 0) as usize).unwrap()),
+                                *(data.get((4 * i + 1) as usize).unwrap()),
+                                *(data.get((4 * i + 2) as usize).unwrap()),
+                                *(data.get((4 * i + 3) as usize).unwrap()),
+                            ]),
+                        );
+                    }
+
+                    img.save_with_format(
+                        &self.path.with_extension(
+                            img_format
+                                .extensions_str()
+                                .first()
+                                .ok_or(anyhow!("No &str for format {:?}, somehow", img_format))?,
+                        ),
+                        img_format.clone(),
+                    )?;
+                    Ok(())
+                }
             },
         }
     }
@@ -200,13 +243,12 @@ pub struct ImageConvertionOptions {
 impl Default for ImageConvertionOptions {
     fn default() -> Self {
         Self {
-            svg_render_dpi: 300,
-            pdf_render_dpi: 100,
-            pdf_render_to_separate_pages: true
+            svg_render_dpi: 96,
+            pdf_render_dpi: 96,
+            pdf_render_to_separate_pages: true,
         }
     }
 }
-
 
 #[derive(Clone)]
 pub struct ImageConverter {
