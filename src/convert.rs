@@ -1,11 +1,9 @@
-use std::{any::Any, collections::HashMap, ffi::OsStr, path::PathBuf, thread};
+use std::{collections::HashMap, path::PathBuf};
 
-use anyhow::Error;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 use gpui_component::{
     button::*,
-    input::{Input, InputState},
     label::Label,
     menu::{ContextMenuExt, PopupMenuItem},
     scroll::ScrollableElement,

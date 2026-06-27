@@ -1,22 +1,16 @@
 use anyhow::{Result, anyhow};
-use gpui::Context;
+
 use image::{GenericImage, Rgba};
 use pdfium_bind::*;
-use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-    IntoParallelRefMutIterator, ParallelIterator,
-};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use resvg::{
     self,
     usvg::{self, Transform},
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
-    thread,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -194,15 +188,26 @@ impl Image {
                         &usvg::Options::default(),
                     )?;
                     let scaling = options.svg_render_dpi as f32 / 96.;
-                    let (width, height) = (tree.size().width() * scaling, tree.size().height() * scaling);
+                    let (width, height) = (
+                        tree.size().width() * scaling,
+                        tree.size().height() * scaling,
+                    );
 
-                    let mut pixmap = resvg::tiny_skia::Pixmap::new(width as u32, height as u32) 
+                    let mut pixmap = resvg::tiny_skia::Pixmap::new(width as u32, height as u32)
                         .ok_or(anyhow!("Couldn't create PixMap"))?;
-                    
-                    resvg::render(&tree, Transform::from_scale(scaling as f32, scaling as f32), &mut pixmap.as_mut());
+
+                    resvg::render(
+                        &tree,
+                        Transform::from_scale(scaling as f32, scaling as f32),
+                        &mut pixmap.as_mut(),
+                    );
                     let data = pixmap.data().to_vec();
-                    
-                    let mut img = image::DynamicImage::new(width as u32, height as u32, image::ColorType::Rgba8);
+
+                    let mut img = image::DynamicImage::new(
+                        width as u32,
+                        height as u32,
+                        image::ColorType::Rgba8,
+                    );
 
                     for i in 0..((width * height) as u32) {
                         img.put_pixel(

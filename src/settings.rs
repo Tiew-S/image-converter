@@ -1,6 +1,6 @@
 use gpui::*;
 use gpui_component::{
-    button::{Button, ButtonVariants}, dialog::*, form::{field, v_form}, input::{Input, InputState, NumberInput}, label::Label, separator::Separator, switch::Switch, *,
+    form::{field, v_form}, input::{Input, InputState}, label::Label, switch::Switch, *,
 };
 
 use crate::things::Settings;
@@ -72,7 +72,7 @@ impl SettingsView {
 }
 
 impl Render for SettingsView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .p_4()
             .gap_4()
