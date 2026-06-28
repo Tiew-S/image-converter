@@ -3,7 +3,7 @@ name = "ImageConverter"
 description = "It bulk converts your images on YOUR device"
 authors = ["Tiew <tnttiew@gmail.com>"]
 repository = "https://github.com/Tiew-S/image-converter"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 
 [profile.release]
@@ -35,5 +35,5 @@ resvg = "0.47.0"
 [package.metadata.bundle]
 name = "ImageConverter"
 identifier = "com.tiews.imageconverter"
-icon = ["assets/icon.png", "assets/icon.ico", "assets/icon.png"]
+icon = ["assets/icon/sicon.icns","assets/icon/sicon.ico","assets/icon/s32x32.png","assets/icon/s64x64.png","assets/icon/s128x128.png","assets/icon/s128x128@2x.png","assets/icon/sicon.png"]
 resources = []

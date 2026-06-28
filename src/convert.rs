@@ -205,6 +205,7 @@ impl ConvertView {
                         .ghost()
                         .xsmall()
                         .m_1()
+                        .mb_0()
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.converter.clear_images();
                             cx.notify();
@@ -241,6 +242,7 @@ impl ConvertView {
                             .child(
                                 div()
                                     .id(key)
+                                    .gap_1()
                                     .h_flex()
                                     .flex_grow_1()
                                     .text_ellipsis()
@@ -265,7 +267,7 @@ impl ConvertView {
                                             )
                                             .child(
                                                 Label::new(e)
-                                                    .ml_2()
+                                                    .ml_1()
                                                     .text_color(cx.theme().muted_foreground)
                                                     .italic(),
                                             ),

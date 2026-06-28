@@ -1,7 +1,9 @@
 - preview X
 - drag and drop file
 - settings X
-- svg
+- svg X
+- center icon
+- remove icon background
 - right click menu X
 - clear images X
 - incremental updating on image converter convert all X
