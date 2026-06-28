@@ -35,5 +35,5 @@ resvg = "0.47.0"
 [package.metadata.bundle]
 name = "ImageConverter"
 identifier = "com.tiews.imageconverter"
-icon = ["assets/icon/sicon.icns","assets/icon/sicon.ico","assets/icon/s32x32.png","assets/icon/s64x64.png","assets/icon/s128x128.png","assets/icon/s128x128@2x.png","assets/icon/sicon.png"]
+icon = ["assets/icons/icon.icns","assets/icons/icon.ico","assets/icons/32x32.png","assets/icons/64x64.png","assets/icons/128x128.png","assets/icons/128x128@2x.png","assets/icons/icon.png"]
 resources = []
