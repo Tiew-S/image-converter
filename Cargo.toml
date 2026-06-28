@@ -35,5 +35,6 @@ resvg = "0.47.0"
 [package.metadata.bundle]
 name = "ImageConverter"
 identifier = "com.tiews.imageconverter"
-icon = ["assets/icons/icon.icns","assets/icons/icon.ico","assets/icons/32x32.png","assets/icons/64x64.png","assets/icons/128x128.png","assets/icons/128x128@2x.png","assets/icons/icon.png"]
+# Looks like cargo-bundle doesn't work with multiple icon formats well. Just change this when bundling, I guess. 
+icon = ["assets/icons/icon.ico"]
 resources = []
